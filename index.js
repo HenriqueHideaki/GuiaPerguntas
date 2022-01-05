@@ -2,6 +2,8 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 const connection = require("./database/database");
+const Pergunta = require("./database/Pergunta");
+const Resposta = require("./database/Resposta");
 
 //Database
 connection
@@ -23,7 +25,18 @@ app.use(bodyParser.json());
 
 //rotas
 app.get("/",(req,res) => {
-  res.render("index");
+
+  //Esse método é responsavel por procurar todas as perguntas da tabela e retornar, equivalente a SELECT *   ALL FROM PERGUNTAS
+  // Assim que a pesquisa é feita a lista de perguntas é armazenada na variavel perguntas e a variavel é apresentada no front
+  Pergunta.findAll({raw : true, order: [
+    ['id','DESC'] // ordenando as perguntas pelo id, DESC = decrescente
+  ]}).then(perguntas => {
+    res.render("index",{
+      perguntas: perguntas
+    });
+  });
+
+  
 });
 
 
@@ -31,11 +44,60 @@ app.get("/perguntar", (req,res)=>{
   res.render("perguntar");
 })
 
+
 app.post("/salvarpergunta",(req,res)=>{
+
   var titulo = req.body.titulo;
   var descricao = req.body.descricao;
-  res.send("Formulario Recebido " + titulo + " " + descricao);
+
+  Pergunta.create({
+      titulo: titulo,
+      descricao: descricao
+  }).then(()=>{
+    res.redirect("/");
+  });
+
 });
+
+
+app.get("/pergunta/:id", (req,res) => {
+  var id = req.params.id;
+  // Busca no banco de dados a pergunta com o id correspondente
+  Pergunta.findOne({
+    where: {id: id}
+  }).then(pergunta => {
+    if(pergunta != undefined){//Pergunta achada
+
+      Resposta.findAll({
+        where: {perguntaId: pergunta.id},
+        order: [ 
+          ['id','DESC'] 
+        ] 
+      }).then(respostas => { 
+        res.render("pergunta",{
+          pergunta: pergunta,
+          respostas: respostas
+        });
+
+
+      });
+    }else{ //não encontrada
+      res.redirect("/");
+    }
+  });
+});
+
+app.post("/responder",(req,res) => {
+  var corpo = req.body.corpo;
+  var perguntaId = req.body.pergunta;
+  Resposta.create({
+    corpo: corpo,
+    perguntaId: perguntaId
+  }).then(() => {
+      res.redirect("/pergunta/"+perguntaId);
+  });
+});
+
 
 app.listen(8080,()=>{
   console.log("App Rodando");
